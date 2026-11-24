@@ -17,6 +17,10 @@ let client;
 let profile;
 let model;
 let selected;
+let pending;
+let expectedRole;
+let view = 'progress';
+let roomFilter = 0;
 
 function read(result) {
   if (result.error) throw result.error;
@@ -50,19 +54,26 @@ function action(target, handler) {
 
 function resetEvaluation() {
   selected = null;
+  pending = null;
+  form.hidden = false;
+  byId('review').hidden = true;
   form.reset();
   evaluation.hidden = true;
+  if (profile?.rol === 'jurado') byId('agenda').hidden = false;
 }
 
 async function refresh() {
   const activeProfile = profile;
-  const [jornada, agenda, respuestas] = (await Promise.all([
+  const [jornada, agenda, respuestas, jurados] = (await Promise.all([
     client.from('basar_jornada').select('abierta,rubrica').single(),
     client.from('basar_participantes').select('id,nombre,sala,horario,horario_fin').order('sala').order('horario').order('id'),
-    client.from('basar_evaluaciones').select('*')
+    client.from('basar_evaluaciones').select('*'),
+    activeProfile.rol === 'admin'
+      ? client.from('basar_perfiles').select('id,nombre,sala,puesto').eq('rol', 'jurado').order('sala').order('puesto')
+      : { data: [] }
   ])).map(read);
   if (profile !== activeProfile) return;
-  model = { jornada, agenda, respuestas };
+  model = { jornada, agenda, respuestas, jurados };
   render();
 }
 
@@ -76,43 +87,113 @@ function render() {
   byId('availability').textContent = jornada.abierta ? 'Evaluaciones abiertas' :
     jornada.rubrica ? 'Evaluaciones cerradas' : 'Evaluaciones cerradas · Rúbrica oficial pendiente';
 
-  const rows = agenda.map(participant => {
-    const received = respuestas.filter(answer => answer.participante_id === participant.id);
-    const row = node('div', '', 'agenda-row');
-    const info = node('div', '');
-    const time = node('time', formatter.format(new Date(participant.horario)), 'hint');
-    time.dateTime = participant.horario;
-    info.append(node('strong', participant.nombre), document.createElement('br'), time);
-    if (participant.horario_fin) {
-      const end = node('time', ' – ' + timeFormatter.format(new Date(participant.horario_fin)), 'hint');
-      end.dateTime = participant.horario_fin;
-      info.append(end);
-    }
-    row.append(info);
-    if (admin) {
-      const actions = node('div', '', 'actions');
-      const edit = node('button', 'Editar', 'secondary');
-      action(edit, () => editParticipant(row, participant));
-      actions.append(node('span', received.length + ' de 3 evaluaciones'), edit);
-      row.append(actions);
-    } else if (received.length) {
-      row.append(node('span', 'Evaluación enviada'));
-    } else {
-      const evaluate = node('button', jornada.abierta ? 'Evaluar' : 'Pendiente');
-      evaluate.disabled = !jornada.abierta;
-      action(evaluate, () => openEvaluation(participant, jornada.rubrica));
-      row.append(evaluate);
-    }
-    return { sala: participant.sala, row };
-  });
-  const rooms = (admin ? [1, 2] : [profile.sala]).map(sala => {
+  const target = byId('agenda');
+  target.hidden = admin ? view === 'config' : Boolean(selected);
+  byId('admin-controls').hidden = !admin || !['config', 'agenda', 'results'].includes(view);
+  byId('config-controls').hidden = view !== 'config';
+  byId('agenda-controls').hidden = view !== 'agenda';
+  byId('result-controls').hidden = view !== 'results';
+  for (const tab of byId('admin').querySelectorAll('[data-view]')) {
+    const active = tab.dataset.view === view;
+    tab.classList.toggle('active', active);
+    if (active) tab.setAttribute('aria-current', 'true');
+    else tab.removeAttribute('aria-current');
+  }
+  if (target.hidden) return;
+
+  const rooms = admin ? (roomFilter ? [roomFilter] : [1, 2]) : [profile.sala];
+  const sections = rooms.map(sala => {
     const section = document.createElement('section');
-    const heading = node('h3', 'Sala ' + sala);
-    const roomRows = rows.filter(item => item.sala === sala).map(item => item.row);
-    section.append(heading, ...(roomRows.length ? roomRows : [node('p', 'No hay turnos cargados para esta sala.')]));
+    const participants = agenda.filter(item => item.sala === sala);
+    const jurors = model.jurados.filter(item => item.sala === sala);
+    section.append(node('h3', 'Sala ' + sala));
+    if (admin && ['assignments', 'jurors'].includes(view)) {
+      if (view === 'assignments') {
+        section.append(node('p', 'Los ' + participants.length + ' emprendimientos de esta sala se asignan a sus tres puestos de jurado.'));
+      }
+      for (const position of [1, 2, 3]) {
+        const juror = jurors.find(item => item.puesto === position);
+        section.append(node('p', 'Jurado ' + position + ' · ' + (juror?.nombre ?? 'Pendiente de vincular')));
+      }
+      return section;
+    }
+    if (admin && view === 'progress') {
+      const totals = [0, 0, 0, 0];
+      for (const participant of participants) {
+        totals[respuestas.filter(answer => answer.participante_id === participant.id).length]++;
+      }
+      const metrics = node('div', '', 'bazar-metrics');
+      totals.forEach((count, score) => metrics.append(node('p', count + (count === 1 ? ' participante' : ' participantes') + ' con ' + score + ' de 3')));
+      section.append(metrics);
+    }
+    if (participants.length === 0) section.append(node('p', 'No hay turnos cargados para esta sala.'));
+    for (const participant of participants) {
+      const received = respuestas.filter(answer => answer.participante_id === participant.id);
+      if (admin && view === 'results' && !received.length) continue;
+      const row = node('div', '', 'agenda-row');
+      const info = node('div', '');
+      const time = node('time', formatter.format(new Date(participant.horario)), 'hint');
+      time.dateTime = participant.horario;
+      info.append(node('strong', participant.nombre), document.createElement('br'), time);
+      if (participant.horario_fin) {
+        const end = node('time', ' – ' + timeFormatter.format(new Date(participant.horario_fin)), 'hint');
+        end.dateTime = participant.horario_fin;
+        info.append(end);
+      }
+      row.append(info);
+      if (admin) {
+        const actions = node('div', '', 'actions');
+        actions.append(node('span', received.length + ' de 3 evaluaciones'));
+        if (['agenda', 'participants'].includes(view)) {
+          const edit = node('button', 'Editar', 'btn btn-secondary btn-small');
+          action(edit, () => editParticipant(row, participant));
+          actions.append(edit);
+        }
+        if (view === 'results') {
+          const details = document.createElement('details');
+          details.append(node('summary', 'Ver respuestas'));
+          for (const answer of received) {
+            const juror = jurors.find(item => item.id === answer.jurado_id);
+            details.append(node('p', (juror?.nombre ?? 'Jurado') + ' · ' + answer.puntuacion + ' / 5'));
+            details.append(node('p', answer.observacion));
+          }
+          info.append(details);
+        }
+        row.append(actions);
+      } else if (received.length) {
+        row.append(node('span', 'Evaluación enviada'));
+      } else {
+        const evaluate = node('button', jornada.abierta ? 'Evaluar' : 'Pendiente', 'btn btn-primary btn-small');
+        evaluate.disabled = !jornada.abierta;
+        action(evaluate, () => openEvaluation(participant, jornada.rubrica));
+        row.append(evaluate);
+      }
+      section.append(row);
+    }
+    if (admin && view === 'results' && section.children.length === 1) {
+      section.append(node('p', 'Todavía no hay evaluaciones para esta sala.'));
+    }
     return section;
   });
-  byId('agenda').replaceChildren(...rooms);
+
+  if (admin) {
+    const label = node('label', 'Sala');
+    label.htmlFor = 'room-filter';
+    const select = document.createElement('select');
+    select.id = 'room-filter';
+    select.append(new Option('Todas las salas', 0), new Option('Sala 1', 1), new Option('Sala 2', 2));
+    select.value = roomFilter;
+    select.addEventListener('change', () => {
+      roomFilter = Number(select.value);
+      render();
+      byId('room-filter').focus();
+    });
+    const tools = node('div', '', 'bazar-room-tools');
+    tools.append(label, select);
+    target.replaceChildren(tools, ...sections);
+  } else {
+    target.replaceChildren(...sections);
+  }
 }
 
 function openEvaluation(participant, rubric) {
@@ -141,6 +222,8 @@ function openEvaluation(participant, rubric) {
   byId('criteria').replaceChildren(...fields);
   byId('evaluation-title').textContent = 'Evaluar a ' + participant.nombre;
   evaluation.hidden = false;
+  byId('agenda').hidden = true;
+  updateScore();
   byId('evaluation-title').focus();
 }
 
@@ -203,16 +286,53 @@ async function showSession(user) {
   model = null;
   resetEvaluation();
   dashboard.hidden = true;
-  access.hidden = !user;
+  access.hidden = true;
+  byId('welcome').hidden = Boolean(user);
+  byId('logout').hidden = true;
+  byId('profile').textContent = '';
   if (!user) return;
   profile = read(await client.from('basar_perfiles').select('nombre,rol,puesto,sala').eq('id', user.id).maybeSingle());
   if (!profile) {
     read(await client.auth.signOut());
-    access.hidden = false;
+    byId('welcome').hidden = false;
     throw new Error('Esta cuenta aún no tiene acceso a Bazar Zipa 2026.');
   }
+  if (expectedRole && profile.rol !== expectedRole) {
+    read(await client.auth.signOut());
+    await showSession(null);
+    throw new Error('Elige el acceso que corresponde al rol de esta cuenta.');
+  }
+  view = 'progress';
+  roomFilter = 0;
   await refresh();
+  byId('dashboard-title').textContent = profile.rol === 'admin' ? 'Panel de Administración' : 'Emprendimientos de tu sala';
+  byId('logout').hidden = false;
   dashboard.hidden = false;
+  byId('dashboard-title').focus();
+}
+
+function showLogin(role) {
+  expectedRole = role;
+  status.textContent = '';
+  byId('welcome').hidden = true;
+  access.hidden = false;
+  byId('access-title').textContent = role === 'admin' ? 'Acceso de administración' : 'Acceso de jurados';
+  byId('login').elements.email.focus();
+}
+
+byId('open-jury').addEventListener('click', () => showLogin('jurado'));
+byId('open-admin').addEventListener('click', () => showLogin('admin'));
+byId('back-home').addEventListener('click', () => {
+  access.hidden = true;
+  status.textContent = '';
+  byId('welcome').hidden = false;
+  byId(expectedRole === 'admin' ? 'open-admin' : 'open-jury').focus();
+});
+for (const tab of byId('admin').querySelectorAll('[data-view]')) {
+  tab.addEventListener('click', () => {
+    view = tab.dataset.view;
+    render();
+  });
 }
 
 action(byId('login'), async () => {
@@ -258,15 +378,48 @@ action(byId('agenda-form'), async () => {
 });
 
 byId('cancel').addEventListener('click', resetEvaluation);
-action(form, async () => {
-  const participant = selected;
-  if (!participant) return;
+function updateScore() {
   const data = new FormData(form);
-  const notas = Object.fromEntries(model.jornada.rubrica.criterios.map(criterion => [
+  const total = model.jornada.rubrica.criterios.reduce((sum, criterion) => {
+    const value = Number(data.get('nota_' + criterion.id).replace(',', '.'));
+    return sum + (value >= 0 && value <= 5 ? value * criterion.peso / 100 : 0);
+  }, 0);
+  byId('score').textContent = total.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+form.addEventListener('input', updateScore);
+
+action(form, () => {
+  if (!selected) return;
+  const data = new FormData(form);
+  const criteria = model.jornada.rubrica.criterios;
+  const notas = Object.fromEntries(criteria.map(criterion => [
     criterion.id, Number(data.get('nota_' + criterion.id).replace(',', '.'))
   ]));
+  if (Object.values(notas).some(value => !Number.isFinite(value) || value < 0 || value > 5)) {
+    throw new Error('Cada calificación debe estar entre 0 y 5.');
+  }
   const observacion = data.get('observacion').trim();
   if (!observacion) throw new Error('Escribe la observación final.');
+  pending = { notas, observacion };
+  const rows = criteria.flatMap(criterion => [
+    node('dt', criterion.nombre), node('dd', String(notas[criterion.id]))
+  ]);
+  rows.push(node('dt', 'Puntuación ponderada'), node('dd', byId('score').textContent), node('dt', 'Observación final'), node('dd', observacion));
+  byId('review-summary').replaceChildren(...rows);
+  form.hidden = true;
+  byId('review').hidden = false;
+  byId('send').focus();
+});
+
+byId('back-edit').addEventListener('click', () => {
+  byId('review').hidden = true;
+  form.hidden = false;
+  byId('review-button').focus();
+});
+action(byId('send'), async () => {
+  const participant = selected;
+  if (!participant || !pending) return;
+  const { notas, observacion } = pending;
   try {
     read(await client.from('basar_evaluaciones').insert({ participante_id: participant.id, notas, observacion }));
   } catch (error) {
@@ -300,5 +453,5 @@ async function start() {
 
 start().catch(error => {
   status.textContent = error.message || 'No se pudo conectar con Supabase.';
-  access.hidden = !client;
+  byId('welcome').hidden = false;
 });

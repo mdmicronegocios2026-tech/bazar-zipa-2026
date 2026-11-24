@@ -13,7 +13,7 @@ function loadLibrary() {
   });
 }
 
-export async function exportResults({ jornada, agenda, respuestas }, formatter) {
+export async function exportResults({ jornada, agenda, respuestas, jurados = [] }, formatter) {
   library ??= loadLibrary();
   const { Workbook } = await library;
   const workbook = new Workbook();
@@ -33,7 +33,7 @@ export async function exportResults({ jornada, agenda, respuestas }, formatter) 
     row.getCell(6).numFmt = '0.00';
     for (const answer of received) {
       const detailRow = detail.addRow([
-        participant.nombre, participant.sala, answer.jurado_id, ...criteria.map(c => answer.notas[c.id]), Number(answer.puntuacion),
+        participant.nombre, participant.sala, jurados.find(jurado => jurado.id === answer.jurado_id)?.nombre ?? answer.jurado_id, ...criteria.map(c => answer.notas[c.id]), Number(answer.puntuacion),
         answer.observacion, formatter.format(new Date(answer.enviada)), answer.rubrica_version
       ]);
       detailRow.getCell(4 + criteria.length).numFmt = '0.00';

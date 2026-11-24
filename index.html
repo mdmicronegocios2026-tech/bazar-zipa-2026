@@ -5,44 +5,88 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#143d30">
   <title>Bazar Zipa 2026 · Evaluación de pitch</title>
+  <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/basar.css">
   <script defer src="vendor/supabase-2.45.4.js"></script>
   <script type="module" src="js/basar.js"></script>
 </head>
 <body>
-  <header class="hero">
-    <div class="hero-inner">
-      <div>
-        <p class="date">30 de noviembre de 2026 · Zipaquirá</p>
-        <h1>Bazar Zipa 2026</h1>
-        <p class="subtitle">Jornada de evaluación de pitch</p>
+  <header class="header">
+    <div class="header-content">
+      <div class="logo">
+        <img src="bazar.png" alt="Bazar Zipa" class="header-logo bazar-logo">
+        <img src="logo-uniminuto.png" alt="UNIMINUTO" class="header-logo">
       </div>
-      <img src="bazar.png" alt="Logo de la jornada" width="140" height="112">
+      <nav class="nav" aria-label="Sesión">
+        <span id="profile" class="user-display"></span>
+        <button id="logout" class="nav-btn logout-btn" hidden>Cerrar sesión</button>
+      </nav>
     </div>
   </header>
-  <main>
+  <section id="welcome" class="section active">
+            <div class="hero">
+                <div class="hero-inner">
+                    <h1 class="hero-title">Bazar Zipa 2026</h1>
+                    <p class="hero-subtitle">Sistema de Evaluación de Emprendimientos</p>
+                    <p class="hero-sub">30 de noviembre de 2026 · Zipaquirá</p>
+                    <div class="role-grid">
+                        <button class="role-card role-jurado" id="open-jury">
+                            <span class="role-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M6 21h12"/><path d="M3 7h18"/><path d="M12 3l-5 4h10l-5-4z"/><path d="M6 7l-2.5 5a2.75 2.75 0 0 0 5 0L6 7"/><path d="M18 7l-2.5 5a2.75 2.75 0 0 0 5 0L18 7"/></svg>
+                            </span>
+                            <span class="role-body">
+                                <span class="role-title">Soy Jurado</span>
+                                <span class="role-desc">Evalúa los emprendimientos que tienes asignados</span>
+                            </span>
+                        </button>
+
+                        <button class="role-card role-admin" id="open-admin">
+                            <span class="role-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.8 12.2 20 3"/><path d="M16 7l3 3"/><path d="M18 5l2 2"/></svg>
+                            </span>
+                            <span class="role-body">
+                                <span class="role-title">Soy Admin</span>
+                                <span class="role-desc">Panel de administración y resultados</span>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+  <main class="container">
     <p id="status" role="status" aria-live="polite"></p>
     <noscript>Activa JavaScript para acceder a la plataforma.</noscript>
-    <section id="access" class="card access" aria-labelledby="access-title" hidden>
+    <section id="access" class="panel-wrap access" aria-labelledby="access-title" hidden>
+      <div class="panel-card">
       <h2 id="access-title">Acceso a la jornada</h2>
       <form id="login">
         <label>Correo electrónico<input name="email" type="email" autocomplete="username" required></label>
         <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
-        <button>Ingresar</button>
+        <div class="welcome-actions"><button type="button" id="back-home" class="btn btn-secondary">Volver</button><button class="btn btn-primary">Ingresar</button></div>
       </form>
+      </div>
     </section>
     <section id="dashboard" hidden aria-labelledby="dashboard-title">
-      <div class="section-heading">
-        <div><h2 id="dashboard-title">Agenda</h2><p id="profile"></p></div>
-        <button id="logout" class="secondary">Cerrar sesión</button>
-      </div>
-      <div id="admin" class="card" hidden>
-        <h3>Administración</h3>
-        <div class="actions">
-          <button id="toggle" disabled></button>
-          <button id="export" class="secondary">Exportar a Excel</button>
+      <h2 id="dashboard-title" tabindex="-1">Agenda</h2>
+      <p id="availability" class="notice"></p>
+      <nav id="admin" class="admin-tabs" aria-label="Panel de administración" hidden>
+        <button class="tab-btn" data-view="progress">Avance de la jornada</button>
+        <button class="tab-btn" data-view="participants">Emprendimientos</button>
+        <button class="tab-btn" data-view="assignments">Asignaciones</button>
+        <button class="tab-btn" data-view="jurors">Jurados</button>
+        <button class="tab-btn" data-view="results">Evaluaciones</button>
+        <button class="tab-btn" data-view="agenda">Agendas</button>
+        <button class="tab-btn" data-view="config">Configuración</button>
+      </nav>
+      <div id="admin-controls" class="admin-content" hidden>
+        <div id="config-controls">
+          <h3>Recepción de evaluaciones</h3>
+          <button id="toggle" class="btn btn-primary" disabled></button>
         </div>
-        <details>
+        <div id="result-controls">
+          <button id="export" class="btn btn-secondary">Exportar a Excel</button>
+        </div>
+        <details id="agenda-controls">
           <summary>Cargar agenda</summary>
           <form id="agenda-form">
             <label>Sala<select name="sala" required><option value="1">Sala 1</option><option value="2">Sala 2</option></select></label>
@@ -50,19 +94,24 @@
               <span class="hint">Pega tres columnas sin encabezados: nombre, inicio y fin. Usa fecha y hora de Bogotá en formato AAAA-MM-DD HH:MM para el inicio y HH:MM para el fin.</span>
               <textarea name="rows" rows="4" required></textarea>
             </label>
-            <button>Guardar agenda</button>
+            <button class="btn btn-primary">Guardar agenda</button>
           </form>
         </details>
       </div>
-      <p id="availability" class="notice"></p>
-      <div id="agenda" class="card"></div>
+      <div id="agenda" class="admin-content"></div>
       <section id="evaluation" class="card" hidden aria-labelledby="evaluation-title">
         <h3 id="evaluation-title" tabindex="-1"></h3>
         <form id="evaluation-form">
           <div id="criteria"></div>
           <label>Observación final<textarea name="observacion" rows="3" required></textarea></label>
-          <div class="actions"><button>Enviar evaluación</button><button type="button" id="cancel" class="secondary">Cancelar</button></div>
+          <div class="eval-summary"><strong>Puntuación ponderada</strong> <output id="score">0,00</output></div>
+          <div class="actions"><button id="review-button" class="btn btn-primary">Revisar evaluación</button><button type="button" id="cancel" class="btn btn-secondary">Volver</button></div>
         </form>
+        <div id="review" hidden>
+          <h3>Revisar evaluación</h3>
+          <dl id="review-summary"></dl>
+          <div class="actions"><button id="send" class="btn btn-primary">Confirmar y enviar</button><button id="back-edit" class="btn btn-secondary">Volver a editar</button></div>
+        </div>
       </section>
     </section>
   </main>
