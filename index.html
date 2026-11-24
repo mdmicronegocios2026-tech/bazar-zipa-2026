@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/basar.css?v=2">
   <script defer src="vendor/supabase-2.45.4.js"></script>
-  <script type="module" src="js/basar.js?v=2"></script>
+  <script type="module" src="js/basar.js?v=3"></script>
 </head>
 <body>
   <header class="header">
@@ -56,6 +56,35 @@
   <main class="container">
     <p id="status" role="status" aria-live="polite"></p>
     <noscript>Activa JavaScript para acceder a la plataforma.</noscript>
+    <section id="jury-access" class="panel-wrap" aria-labelledby="jury-access-title" hidden>
+      <div class="panel-card">
+        <h2 id="jury-access-title">Elige tu nombre</h2>
+        <p class="panel-sub">Los puestos se muestran con nombres provisionales.</p>
+        <form id="jury-picker">
+          <div class="form-group">
+            <label for="jury-slot">Jurado</label>
+            <select id="jury-slot" class="jurado-select" required>
+              <option value="">Selecciona un jurado</option>
+              <optgroup label="Sala 1">
+                <option value="1">Jurado provisional 1</option>
+                <option value="2">Jurado provisional 2</option>
+                <option value="3">Jurado provisional 3</option>
+              </optgroup>
+              <optgroup label="Sala 2">
+                <option value="4">Jurado provisional 4</option>
+                <option value="5">Jurado provisional 5</option>
+                <option value="6">Jurado provisional 6</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="welcome-actions">
+            <button id="jury-back" type="button" class="btn btn-secondary">Volver</button>
+            <button class="btn btn-primary">Continuar</button>
+          </div>
+        </form>
+        <p id="jury-selection-status" class="panel-note" role="status"></p>
+      </div>
+    </section>
     <section id="access" class="panel-wrap access" aria-labelledby="access-title" hidden>
       <div class="panel-card">
       <h2 id="access-title">Acceso a la jornada</h2>

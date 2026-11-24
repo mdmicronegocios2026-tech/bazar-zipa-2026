@@ -113,7 +113,7 @@ function render() {
       }
       for (const position of [1, 2, 3]) {
         const juror = jurors.find(item => item.puesto === position);
-        section.append(node('p', 'Jurado ' + position + ' · ' + (juror?.nombre ?? 'Pendiente de vincular')));
+        section.append(node('p', 'Jurado ' + position + ' · ' + (juror?.nombre ?? 'Jurado provisional ' + ((sala - 1) * 3 + position))));
       }
       return section;
     }
@@ -287,6 +287,7 @@ async function showSession(user) {
   resetEvaluation();
   dashboard.hidden = true;
   access.hidden = true;
+  byId('jury-access').hidden = true;
   byId('welcome').hidden = Boolean(user);
   byId('logout').hidden = true;
   byId('profile').textContent = '';
@@ -320,7 +321,25 @@ function showLogin(role) {
   byId('login').elements.email.focus();
 }
 
-byId('open-jury').addEventListener('click', () => showLogin('jurado'));
+byId('open-jury').addEventListener('click', () => {
+  byId('welcome').hidden = true;
+  byId('jury-access').hidden = false;
+  byId('jury-slot').focus();
+});
+byId('jury-back').addEventListener('click', () => {
+  byId('jury-picker').reset();
+  byId('jury-selection-status').textContent = '';
+  byId('jury-access').hidden = true;
+  byId('welcome').hidden = false;
+  byId('open-jury').focus();
+});
+action(byId('jury-picker'), () => {
+  const slot = byId('jury-slot');
+  const position = Number(slot.value);
+  const sala = position <= 3 ? 1 : 2;
+  byId('jury-selection-status').textContent =
+    slot.selectedOptions[0].textContent + ' · Sala ' + sala + '. El acceso a la agenda está pendiente de habilitación.';
+});
 byId('open-admin').addEventListener('click', () => showLogin('admin'));
 byId('back-home').addEventListener('click', () => {
   access.hidden = true;
