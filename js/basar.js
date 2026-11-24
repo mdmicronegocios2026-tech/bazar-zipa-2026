@@ -21,6 +21,7 @@ let pending;
 let expectedRole;
 let view = 'progress';
 let roomFilter = 0;
+const privateLink = /^#sala-(1|2)=([0-9a-f]{64})$/.exec(location.hash);
 
 function read(result) {
   if (result.error) throw result.error;
@@ -324,21 +325,51 @@ function showLogin(role) {
 byId('open-jury').addEventListener('click', () => {
   byId('welcome').hidden = true;
   byId('jury-access').hidden = false;
-  byId('jury-slot').focus();
+  const slot = byId('jury-slot');
+  if (privateLink) {
+    for (const group of slot.querySelectorAll('optgroup')) {
+      const ownRoom = group.label === 'Sala ' + privateLink[1];
+      group.disabled = !ownRoom;
+      group.hidden = !ownRoom;
+    }
+  }
+  slot.focus();
 });
 byId('jury-back').addEventListener('click', () => {
   byId('jury-picker').reset();
   byId('jury-selection-status').textContent = '';
+  byId('jury-private-agenda').replaceChildren();
+  byId('jury-private-agenda').hidden = true;
   byId('jury-access').hidden = true;
   byId('welcome').hidden = false;
   byId('open-jury').focus();
 });
-action(byId('jury-picker'), () => {
+action(byId('jury-picker'), async () => {
   const slot = byId('jury-slot');
   const position = Number(slot.value);
   const sala = position <= 3 ? 1 : 2;
-  byId('jury-selection-status').textContent =
-    slot.selectedOptions[0].textContent + ' · Sala ' + sala + '. El acceso a la agenda está pendiente de habilitación.';
+  const announcement = byId('jury-selection-status');
+  const agenda = byId('jury-private-agenda');
+  announcement.textContent = '';
+  agenda.hidden = true;
+  agenda.replaceChildren();
+  if (!privateLink) {
+    announcement.textContent = slot.selectedOptions[0].textContent + ' · Sala ' + sala +
+      '. Abre el enlace privado de tu sala para consultar la agenda.';
+    return;
+  }
+  if (!client) throw new Error('No se pudo conectar con Supabase. Recarga la página.');
+  const participants = read(await client.rpc('bazar_agenda_privada', { codigo: privateLink[2], opcion: position }));
+  announcement.textContent = slot.selectedOptions[0].textContent + ' · Sala ' + sala;
+  const heading = node('h3', 'Agenda de tu sala');
+  const rows = participants.map(participant => {
+    const row = node('div', '', 'agenda-row');
+    const end = participant.horario_fin ? ' – ' + timeFormatter.format(new Date(participant.horario_fin)) : '';
+    row.append(node('strong', participant.nombre), node('span', formatter.format(new Date(participant.horario)) + end, 'hint'));
+    return row;
+  });
+  agenda.replaceChildren(heading, ...rows);
+  agenda.hidden = false;
 });
 byId('open-admin').addEventListener('click', () => showLogin('admin'));
 byId('back-home').addEventListener('click', () => {
@@ -465,7 +496,11 @@ document.addEventListener('visibilitychange', () => {
 async function start() {
   if (!backend.url || !backend.key) throw new Error('Falta configurar la conexión con Supabase.');
   if (!globalThis.supabase) throw new Error('No se pudo cargar el cliente de Supabase.');
-  client = globalThis.supabase.createClient(backend.url, backend.key, { auth: { storageKey: 'basar-sipa-2026-auth' } });
+  client = globalThis.supabase.createClient(backend.url, backend.key, { auth: { storageKey: 'basar-sipa-2026-auth', detectSessionInUrl: !privateLink } });
+  if (privateLink) {
+    byId('open-jury').click();
+    return;
+  }
   const { session } = read(await client.auth.getSession());
   await showSession(session?.user);
 }
