@@ -1,6 +1,13 @@
 import { semaforo } from './basar-semaforo.js';
 let library;
 
+const consolidatedStyles = {
+  verde: ['FFD9F2DF', 'FF16532A'],
+  amarillo: ['FFFFEDAC', 'FF634600'],
+  rojo: ['FFFADBD9', 'FF81252A'],
+  neutral: ['FFECEFF1', 'FF37474F']
+};
+
 function loadLibrary() {
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
@@ -62,6 +69,11 @@ export async function exportResults({ jornada, agenda, respuestas, jurados = [] 
       slots.map(({ name, answer }) => name + ': ' + (semaforo[answer?.semaforo] ?? (answer ? 'Sin respuesta' : 'Pendiente'))).join('\n'),
       consolidated
     ]);
+    const [background, foreground] = consolidatedStyles[(complete && hasCurrentVotes && majority) || 'neutral'];
+    const signal = row.getCell(15);
+    signal.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: background } };
+    signal.font = { bold: true, color: { argb: foreground } };
+    signal.alignment = { wrapText: true, vertical: 'middle' };
     for (const column of [6, 8, 10, 11]) row.getCell(column).numFmt = '0.00';
     for (const column of [13, 14]) row.getCell(column).alignment = { wrapText: true, vertical: 'top' };
     const observationLines = row.getCell(13).value.split('\n').reduce((sum, line) => sum + Math.max(1, Math.ceil(line.length / 68)), 0);
