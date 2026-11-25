@@ -73,7 +73,7 @@ function resetEvaluation() {
   evaluation.hidden = true;
   if (activePrivate) {
     byId('jury-access').hidden = false;
-    if (returning) scheduleJurySanta();
+    if (returning) scheduleJuryCharacter();
   } else if (profile?.rol === 'jurado') byId('agenda').hidden = false;
 }
 
@@ -297,7 +297,7 @@ function openEvaluation(participant, rubric) {
   byId('evaluation-title').textContent = 'Evaluar a ' + participant.nombre;
   evaluation.hidden = false;
   if (activePrivate) {
-    stopJurySanta();
+    stopJuryCharacter();
     byId('jury-access').hidden = true;
   } else byId('agenda').hidden = true;
   updateScore();
@@ -409,37 +409,42 @@ function playSanta(id) {
   track.addEventListener('animationcancel', stop, { once: true });
 }
 
-let jurySantaTimer;
+const juryCharacters = ['santa-saludo.gif', 'reno.gif', 'muneco-nieve.gif', 'duende.gif'];
+let juryCharacterTimer;
+let lastJuryCharacter;
 
-function stopJurySanta() {
-  clearTimeout(jurySantaTimer);
+function stopJuryCharacter() {
+  clearTimeout(juryCharacterTimer);
   byId('jury-santa').hidden = true;
 }
 
-function scheduleJurySanta() {
-  stopJurySanta();
+function scheduleJuryCharacter() {
+  stopJuryCharacter();
   const santa = byId('jury-santa');
   const panel = byId('jury-access');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   if (reducedMotion.matches) return;
   santa.dataset.edge = Math.random() < .5 ? 'left' : 'right';
-  jurySantaTimer = setTimeout(() => {
+  juryCharacterTimer = setTimeout(() => {
     if (panel.hidden || reducedMotion.matches) return;
-    if (!santa.hasAttribute('src')) santa.src = new URL('../img/santa-saludo.gif', import.meta.url).href;
+    const choices = juryCharacters.filter(character => character !== lastJuryCharacter);
+    const character = choices[Math.floor(Math.random() * choices.length)];
+    santa.src = new URL('../img/' + character, import.meta.url).href;
+    lastJuryCharacter = character;
     santa.hidden = false;
-    jurySantaTimer = setTimeout(stopJurySanta, 3200);
+    juryCharacterTimer = setTimeout(stopJuryCharacter, 3200);
   }, 450 + Math.random() * 650);
 }
 
 action(byId('open-jury'), async () => {
   byId('welcome').hidden = true;
   byId('jury-access').hidden = false;
-  scheduleJurySanta();
+  scheduleJuryCharacter();
   if (roomCodes.size) await loadJuryNames();
   if (!byId('jury-access').hidden) byId('jury-slot').focus();
 });
 byId('jury-back').addEventListener('click', () => {
-  stopJurySanta();
+  stopJuryCharacter();
   activePrivate = null;
   byId('jury-picker').reset();
   byId('jury-selection-status').textContent = '';
