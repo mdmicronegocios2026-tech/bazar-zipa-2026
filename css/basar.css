@@ -121,3 +121,40 @@ button:disabled { opacity: .6; cursor: default; }
 #criteria .rubrica-viva { border-left-color: var(--nivel-color); }
 #criteria .rubrica-consulta { margin-bottom: 0; }
 #criteria .rubrica-consulta dd { margin: .3rem 0 .85rem; }
+
+#jury-access {
+  min-height: 0;
+  align-items: flex-start;
+  padding: clamp(.5rem, 2vw, 1.5rem) 0;
+  background: transparent;
+}
+#jury-access .panel-card {
+  max-width: 1080px;
+  padding: clamp(1rem, 3vw, 2rem);
+}
+#jury-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: .75rem 1.5rem;
+  max-width: 52rem;
+}
+#jury-picker .form-group, #jury-picker .welcome-actions { margin: 0; }
+#jury-private-agenda .agenda-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content minmax(6rem, max-content);
+  gap: .5rem 1.25rem;
+  padding: .9rem 1rem;
+}
+#jury-private-agenda .agenda-row > :nth-child(3) { justify-self: end; }
+@media (max-width: 52rem) {
+  #jury-private-agenda .agenda-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  #jury-private-agenda .agenda-row > strong { grid-column: 1 / -1; }
+  #jury-private-agenda .agenda-row > :nth-child(3) { grid-column: 2; }
+}
+@media (max-width: 36rem) {
+  #jury-picker { grid-template-columns: 1fr; }
+  #jury-private-agenda .agenda-row { padding-inline: .65rem; }
+}
