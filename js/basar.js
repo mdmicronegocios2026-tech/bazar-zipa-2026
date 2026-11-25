@@ -208,29 +208,86 @@ function render() {
   }
 }
 
+const rubricLevels = ['Sin evidencia', 'Nivel 1', 'Insuficiente', 'Regular', 'Bueno', 'Excelente'];
+
+function parseGrade(raw) {
+  const value = String(raw ?? '').trim();
+  if (!/^[0-5](?:[.,][0-9]{1,2})?$/.test(value)) return NaN;
+  const grade = Number(value.replace(',', '.'));
+  return grade <= 5 ? grade : NaN;
+}
+
+function renderCriterion(criterion) {
+  const group = node('div', '', 'criterio-card');
+  const heading = node('h4', criterion.nombre + ' · ' + criterion.peso + ' %');
+  const label = node('label', 'Calificación de 0 a 5');
+  const input = document.createElement('input');
+  input.name = 'nota_' + criterion.id;
+  input.inputMode = 'decimal';
+  input.placeholder = 'Ejemplo: 4,25';
+  input.required = true;
+  label.append(input);
+
+  const feedback = node('div', '', 'rubrica-viva');
+  feedback.setAttribute('aria-live', 'polite');
+  feedback.setAttribute('aria-atomic', 'true');
+  const header = node('div', '', 'rubrica-viva-heading');
+  const title = node('span', '', 'rubrica-nivel');
+  const range = node('span', '', 'rubrica-rango');
+  const bar = node('div', '', 'rubrica-progress');
+  bar.setAttribute('aria-hidden', 'true');
+  const fill = document.createElement('span');
+  const description = node('p', '', 'rubrica-descripcion');
+  header.append(title, range);
+  bar.append(fill);
+  feedback.append(header, bar, description);
+
+  function updateFeedback() {
+    const grade = parseGrade(input.value);
+    const valid = Number.isFinite(grade);
+    const empty = !input.value.trim();
+    const level = Math.floor(grade);
+    const previous = feedback.dataset.level;
+    const message = 'Escribe una nota de 0 a 5 con hasta dos decimales, usando coma o punto.';
+    input.setCustomValidity(valid || empty ? '' : message);
+    feedback.dataset.level = valid ? String(level) : empty ? 'empty' : 'invalid';
+    title.textContent = valid ? rubricLevels[level] : empty ? 'Tu nota, con contexto' : 'Revisa la calificación';
+    range.textContent = !valid ? '0 a 5' : level === 5 ? '5,00' : level + ',00–' + level + ',99';
+    description.textContent = valid ? (criterion.niveles?.[level] ?? '') : empty ?
+      'Escribe una calificación para ver la descripción correspondiente.' : message;
+    fill.style.width = valid ? grade / 5 * 100 + '%' : '0%';
+    if (previous !== undefined && previous !== feedback.dataset.level &&
+        !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      feedback.getAnimations().forEach(animation => animation.cancel());
+      feedback.animate([{ opacity: .65, transform: 'translateY(3px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 180 });
+    }
+  }
+  input.addEventListener('input', updateFeedback);
+  updateFeedback();
+
+  const guide = node('details', '', 'rubrica-consulta');
+  const levels = document.createElement('dl');
+  for (const level of [5, 4, 3, 2, 1, 0]) {
+    const choose = node('button', 'Usar ' + level + ' · ' + rubricLevels[level], 'btn btn-secondary btn-small');
+    choose.type = 'button';
+    choose.addEventListener('click', () => {
+      input.value = String(level);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.focus();
+    });
+    const term = document.createElement('dt');
+    term.append(choose);
+    levels.append(term, node('dd', criterion.niveles?.[level] ?? ''));
+  }
+  guide.append(node('summary', 'Consultar todos los niveles'), levels);
+  group.append(heading, label, feedback, guide);
+  return group;
+}
+
 function openEvaluation(participant, rubric) {
   resetEvaluation();
   selected = participant;
-  const fields = rubric.criterios.map(criterion => {
-    const label = node('label', criterion.nombre + ' · ' + criterion.peso + ' %');
-    const input = document.createElement('input');
-    input.name = 'nota_' + criterion.id;
-    input.inputMode = 'decimal';
-    input.pattern = '[0-5]([.,][0-9]{1,2})?';
-    input.placeholder = '0 a 5';
-    input.required = true;
-    label.append(input);
-    if (!criterion.niveles) return label;
-    const group = document.createElement('div');
-    const guide = document.createElement('details');
-    const levels = document.createElement('dl');
-    for (const score of [5, 4, 3, 2, 1, 0]) {
-      levels.append(node('dt', 'Nivel ' + score), node('dd', criterion.niveles[score]));
-    }
-    guide.append(node('summary', 'Consultar niveles'), levels);
-    group.append(label, guide);
-    return group;
-  });
+  const fields = rubric.criterios.map(renderCriterion);
   byId('criteria').replaceChildren(...fields);
   byId('evaluation-title').textContent = 'Evaluar a ' + participant.nombre;
   evaluation.hidden = false;
@@ -461,8 +518,8 @@ byId('cancel').addEventListener('click', resetEvaluation);
 function updateScore() {
   const data = new FormData(form);
   const total = model.jornada.rubrica.criterios.reduce((sum, criterion) => {
-    const value = Number(data.get('nota_' + criterion.id).replace(',', '.'));
-    return sum + (value >= 0 && value <= 5 ? value * criterion.peso / 100 : 0);
+    const value = parseGrade(data.get('nota_' + criterion.id));
+    return sum + (Number.isFinite(value) ? value * criterion.peso / 100 : 0);
   }, 0);
   byId('score').textContent = total.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -473,7 +530,7 @@ action(form, () => {
   const data = new FormData(form);
   const criteria = model.jornada.rubrica.criterios;
   const notas = Object.fromEntries(criteria.map(criterion => [
-    criterion.id, Number(data.get('nota_' + criterion.id).replace(',', '.'))
+    criterion.id, parseGrade(data.get('nota_' + criterion.id))
   ]));
   if (Object.values(notas).some(value => !Number.isFinite(value) || value < 0 || value > 5)) {
     throw new Error('Cada calificación debe estar entre 0 y 5.');

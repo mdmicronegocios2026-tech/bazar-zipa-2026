@@ -116,3 +116,8 @@ button:disabled { opacity: .6; cursor: default; }
   #welcome .role-grid { grid-template-columns: 1fr; }
   #welcome .hero { min-height: auto; }
 }
+
+#criteria .criterio-card h4 { margin-bottom: .75rem; color: #153f33; }
+#criteria .rubrica-viva { border-left-color: var(--nivel-color); }
+#criteria .rubrica-consulta { margin-bottom: 0; }
+#criteria .rubrica-consulta dd { margin: .3rem 0 .85rem; }
