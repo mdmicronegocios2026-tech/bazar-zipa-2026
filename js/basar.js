@@ -21,7 +21,15 @@ let pending;
 let expectedRole;
 let view = 'progress';
 let roomFilter = 0;
-const privateLink = /^#sala-(1|2)=([0-9a-f]{64})$/.exec(location.hash);
+const roomCodes = new Map();
+const sharedLink = /^#jurados=([0-9a-f]{64})\.([0-9a-f]{64})$/.exec(location.hash);
+const roomLink = /^#sala-(1|2)=([0-9a-f]{64})$/.exec(location.hash);
+if (sharedLink) {
+  roomCodes.set(1, sharedLink[1]);
+  roomCodes.set(2, sharedLink[2]);
+} else if (roomLink) {
+  roomCodes.set(Number(roomLink[1]), roomLink[2]);
+}
 
 function read(result) {
   if (result.error) throw result.error;
@@ -326,13 +334,6 @@ byId('open-jury').addEventListener('click', () => {
   byId('welcome').hidden = true;
   byId('jury-access').hidden = false;
   const slot = byId('jury-slot');
-  if (privateLink) {
-    for (const group of slot.querySelectorAll('optgroup')) {
-      const ownRoom = group.dataset.sala === privateLink[1] || group.label === 'Sala ' + privateLink[1];
-      group.disabled = !ownRoom;
-      group.hidden = !ownRoom;
-    }
-  }
   slot.focus();
 });
 byId('jury-back').addEventListener('click', () => {
@@ -353,13 +354,14 @@ action(byId('jury-picker'), async () => {
   announcement.textContent = '';
   agenda.hidden = true;
   agenda.replaceChildren();
-  if (!privateLink) {
+  const code = roomCodes.get(sala);
+  if (!code) {
     announcement.textContent = slot.selectedOptions[0].textContent + ' · Sala ' + sala +
       '. Abre el enlace privado de tu sala para consultar la agenda.';
     return;
   }
   if (!client) throw new Error('No se pudo conectar con Supabase. Recarga la página.');
-  const participants = read(await client.rpc('bazar_agenda_privada', { codigo: privateLink[2], opcion: position }));
+  const participants = read(await client.rpc('bazar_agenda_privada', { codigo: code, opcion: position }));
   announcement.textContent = slot.selectedOptions[0].textContent + ' · Sala ' + sala;
   const heading = node('h3', 'Agenda de tu sala');
   const rows = participants.map(participant => {
@@ -496,24 +498,24 @@ document.addEventListener('visibilitychange', () => {
 async function start() {
   if (!backend.url || !backend.key) throw new Error('Falta configurar la conexión con Supabase.');
   if (!globalThis.supabase) throw new Error('No se pudo cargar el cliente de Supabase.');
-  client = globalThis.supabase.createClient(backend.url, backend.key, { auth: { storageKey: 'basar-sipa-2026-auth', detectSessionInUrl: !privateLink } });
-  if (privateLink) {
+  client = globalThis.supabase.createClient(backend.url, backend.key, { auth: { storageKey: 'basar-sipa-2026-auth', detectSessionInUrl: roomCodes.size === 0 } });
+  if (roomCodes.size) {
     const slot = byId('jury-slot');
     const note = byId('jury-access-note');
     slot.disabled = true;
     note.textContent = 'Cargando los jurados de tu sala…';
     byId('open-jury').click();
     try {
-      const jurors = read(await client.rpc('bazar_jurados_agenda', {
-        codigo: privateLink[2], sala_solicitada: Number(privateLink[1])
+      const groups = await Promise.all([...roomCodes].map(async ([sala, codigo]) => {
+        const jurors = read(await client.rpc('bazar_jurados_agenda', { codigo, sala_solicitada: sala }));
+        if (jurors.length !== 3) throw new Error('La lista de un salón aún está incompleta.');
+        const group = document.createElement('optgroup');
+        group.label = 'Salón ' + jurors[0].salon;
+        group.append(...jurors.map(juror => new Option(juror.nombre, juror.opcion)));
+        return group;
       }));
-      if (jurors.length !== 3) throw new Error('La lista de esta sala aún está incompleta.');
-      const group = document.createElement('optgroup');
-      group.dataset.sala = privateLink[1];
-      group.label = 'Salón ' + jurors[0].salon;
-      group.append(...jurors.map(juror => new Option(juror.nombre, juror.opcion)));
-      slot.replaceChildren(new Option('Selecciona tu nombre', ''), group);
-      note.textContent = group.label + ' · Selecciona tu nombre para consultar la agenda.';
+      slot.replaceChildren(new Option('Selecciona tu nombre', ''), ...groups);
+      note.textContent = 'Selecciona tu nombre para consultar la agenda.';
       slot.disabled = false;
       if (!byId('jury-access').hidden) slot.focus();
     } catch (error) {
