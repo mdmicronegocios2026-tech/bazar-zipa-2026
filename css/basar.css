@@ -171,6 +171,5 @@ button:disabled { opacity: .6; cursor: default; }
 .semaforo-option:has(:checked) { background: #f5f1e8; outline: 2px solid var(--signal); outline-offset: -2px; }
 .semaforo-option[data-color="verde"] { --signal: #247348; }
 .semaforo-option[data-color="amarillo"] { --signal: #997000; }
-.semaforo-option[data-color="naranja"] { --signal: #b2561c; }
 .semaforo-option[data-color="rojo"] { --signal: #9c343f; }
 @media (max-width: 40rem) { #semaforo-options { grid-template-columns: 1fr; } }

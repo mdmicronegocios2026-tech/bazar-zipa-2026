@@ -519,10 +519,9 @@ action(byId('agenda-form'), async () => {
 const descriptions = {
   verde: 'Su propuesta está lista y encaja con el evento.',
   amarillo: 'Puede participar si realiza ajustes concretos.',
-  naranja: 'Requiere mejoras importantes antes de participar.',
   rojo: 'Su propuesta no se ajusta a esta edición del bazar.'
 };
-byId('semaforo-options').replaceChildren(...Object.entries(semaforo).map(([color, title]) => {
+byId('semaforo-options').replaceChildren(...Object.keys(descriptions).map(color => {
   const label = node('label', '', 'semaforo-option');
   label.dataset.color = color;
   const input = document.createElement('input');
@@ -531,7 +530,7 @@ byId('semaforo-options').replaceChildren(...Object.entries(semaforo).map(([color
   input.value = color;
   input.required = true;
   const copy = node('span', '');
-  copy.append(node('strong', title), node('span', descriptions[color], 'hint'));
+  copy.append(node('strong', semaforo[color]), node('span', descriptions[color], 'hint'));
   label.append(input, copy);
   return label;
 }));
@@ -560,7 +559,7 @@ action(form, () => {
   const observacion = data.get('observacion').trim();
   if (!observacion) throw new Error('Escribe la observación final.');
   const recomendacion = data.get('recomendacion');
-  if (!Object.hasOwn(semaforo, recomendacion)) throw new Error('Selecciona una recomendación del semáforo.');
+  if (!Object.hasOwn(descriptions, recomendacion)) throw new Error('Selecciona una recomendación del semáforo.');
   pending = { notas, observacion, recomendacion };
   const rows = criteria.flatMap(criterion => [
     node('dt', criterion.nombre), node('dd', String(notas[criterion.id]))
