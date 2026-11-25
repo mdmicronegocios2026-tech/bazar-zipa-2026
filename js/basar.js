@@ -652,7 +652,7 @@ action(byId('send'), async () => {
 
 action(byId('export'), async () => {
   await refresh();
-  const { exportResults } = await import('./basar-report.js?v=4');
+  const { exportResults } = await import('./basar-report.js?v=5');
   await exportResults(model, formatter);
 });
 
