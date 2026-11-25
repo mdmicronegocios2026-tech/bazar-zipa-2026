@@ -447,7 +447,7 @@ async function refreshPrivate() {
     const end = participant.horario_fin ? ' – ' + timeFormatter.format(new Date(participant.horario_fin)) : '';
     row.append(node('strong', participant.nombre), node('span', formatter.format(new Date(participant.horario)) + end, 'hint'));
     if (submitted.has(participant.id)) {
-      row.append(node('span', 'Evaluación enviada'));
+      row.append(node('span', 'Evaluación enviada', 'jury-submitted'));
     } else if (jornada.abierta) {
       const evaluate = node('button', 'Evaluar', 'btn btn-primary btn-small');
       action(evaluate, () => openEvaluation(participant, jornada.rubrica));
@@ -457,7 +457,18 @@ async function refreshPrivate() {
   });
   const reload = node('button', 'Actualizar agenda', 'btn btn-secondary btn-small');
   action(reload, refreshPrivate);
-  target.replaceChildren(heading, reload, ...rows);
+  const toolbar = node('div', '', 'jury-agenda-toolbar');
+  toolbar.append(heading, reload);
+  const sent = agenda.filter(participant => submitted.has(participant.id)).length;
+  const progress = document.createElement('progress');
+  progress.max = agenda.length || 1;
+  progress.value = sent;
+  progress.setAttribute('aria-label', 'Avance de tus evaluaciones');
+  const meter = node('div', '', 'jury-progress');
+  meter.append(node('span', sent + ' de ' + agenda.length + ' evaluaciones enviadas'), progress);
+  const list = node('div', '', 'jury-turns');
+  list.append(...rows);
+  target.replaceChildren(toolbar, meter, list);
   target.hidden = false;
 }
 byId('open-admin').addEventListener('click', () => showLogin('admin'));

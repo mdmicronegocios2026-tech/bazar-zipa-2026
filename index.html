@@ -6,9 +6,9 @@
   <meta name="theme-color" content="#143d30">
   <title>Bazar Zipa 2026 · Evaluación de pitch</title>
   <link rel="stylesheet" href="css/styles.css">
-  <link rel="stylesheet" href="css/basar.css?v=12">
+  <link rel="stylesheet" href="css/basar.css?v=13">
   <script defer src="vendor/supabase-2.45.4.js"></script>
-  <script type="module" src="js/basar.js?v=12"></script>
+  <script type="module" src="js/basar.js?v=13"></script>
 </head>
 <body>
   <header class="header">
@@ -58,8 +58,10 @@
     <noscript>Activa JavaScript para acceder a la plataforma.</noscript>
     <section id="jury-access" class="panel-wrap" aria-labelledby="jury-access-title" hidden>
       <div class="panel-card">
-        <h2 id="jury-access-title">Elige tu nombre</h2>
-        <p id="jury-access-note" class="panel-sub">Usa el enlace compartido de jurados para ver los nombres y consultar la agenda.</p>
+        <header class="jury-masthead">
+          <h2 id="jury-access-title">Elige tu nombre</h2>
+          <p id="jury-access-note" class="panel-sub">Usa el enlace compartido de jurados para ver los nombres y consultar la agenda.</p>
+        </header>
         <form id="jury-picker">
           <div class="form-group">
             <label for="jury-slot">Jurado</label>
@@ -130,7 +132,7 @@
       </div>
       <div id="agenda" class="admin-content"></div>
       <section id="evaluation" class="card" hidden aria-labelledby="evaluation-title">
-        <h3 id="evaluation-title" tabindex="-1"></h3>
+        <header class="jury-masthead"><h3 id="evaluation-title" tabindex="-1"></h3></header>
         <form id="evaluation-form">
           <div id="criteria"></div>
           <fieldset class="bazar-semaforo">
