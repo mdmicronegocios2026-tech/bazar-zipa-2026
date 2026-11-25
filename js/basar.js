@@ -64,14 +64,17 @@ function action(target, handler) {
 }
 
 function resetEvaluation() {
+  const returning = Boolean(selected && activePrivate);
   selected = null;
   pending = null;
   form.hidden = false;
   byId('review').hidden = true;
   form.reset();
   evaluation.hidden = true;
-  if (activePrivate) byId('jury-access').hidden = false;
-  else if (profile?.rol === 'jurado') byId('agenda').hidden = false;
+  if (activePrivate) {
+    byId('jury-access').hidden = false;
+    if (returning) scheduleJurySanta();
+  } else if (profile?.rol === 'jurado') byId('agenda').hidden = false;
 }
 
 async function refresh() {
@@ -293,8 +296,10 @@ function openEvaluation(participant, rubric) {
   byId('criteria').replaceChildren(...fields);
   byId('evaluation-title').textContent = 'Evaluar a ' + participant.nombre;
   evaluation.hidden = false;
-  if (activePrivate) byId('jury-access').hidden = true;
-  else byId('agenda').hidden = true;
+  if (activePrivate) {
+    stopJurySanta();
+    byId('jury-access').hidden = true;
+  } else byId('agenda').hidden = true;
   updateScore();
   byId('evaluation-title').focus();
 }
@@ -404,22 +409,26 @@ function playSanta(id) {
   track.addEventListener('animationcancel', stop, { once: true });
 }
 
+let jurySantaTimer;
+
+function stopJurySanta() {
+  clearTimeout(jurySantaTimer);
+  byId('jury-santa').hidden = true;
+}
+
 function scheduleJurySanta() {
+  stopJurySanta();
   const santa = byId('jury-santa');
   const panel = byId('jury-access');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-  if (santa.dataset.scheduled || reducedMotion.matches) return;
-  santa.dataset.scheduled = 'true';
+  if (reducedMotion.matches) return;
   santa.dataset.edge = Math.random() < .5 ? 'left' : 'right';
-  setTimeout(() => {
-    if (panel.hidden || reducedMotion.matches) {
-      delete santa.dataset.scheduled;
-      return;
-    }
-    santa.src = new URL('../img/santa-saludo.gif', import.meta.url).href;
+  jurySantaTimer = setTimeout(() => {
+    if (panel.hidden || reducedMotion.matches) return;
+    if (!santa.hasAttribute('src')) santa.src = new URL('../img/santa-saludo.gif', import.meta.url).href;
     santa.hidden = false;
-    setTimeout(() => { santa.hidden = true; }, 3200);
-  }, 800 + Math.random() * 2200);
+    jurySantaTimer = setTimeout(stopJurySanta, 3200);
+  }, 450 + Math.random() * 650);
 }
 
 action(byId('open-jury'), async () => {
@@ -430,6 +439,7 @@ action(byId('open-jury'), async () => {
   if (!byId('jury-access').hidden) byId('jury-slot').focus();
 });
 byId('jury-back').addEventListener('click', () => {
+  stopJurySanta();
   activePrivate = null;
   byId('jury-picker').reset();
   byId('jury-selection-status').textContent = '';
