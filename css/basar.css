@@ -231,7 +231,7 @@ button:disabled { opacity: .6; cursor: default; }
   .jury-masthead::after, #jury-access .panel-card, #evaluation, #jury-private-agenda { animation: none; }
 }
 
-.santa-strip {
+.welcome-strip {
   position: relative;
   overflow: hidden;
   height: 2.6rem;
@@ -243,23 +243,6 @@ button:disabled { opacity: .6; cursor: default; }
     radial-gradient(circle at 31px 18px, #dba6a0 0 1px, transparent 2px) 0 0 / 42px 26px,
     linear-gradient(90deg, #f7edda, #fffaf0, #f3e6ce);
 }
-.santa-track {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-inline: .65rem;
-  font-size: 1.65rem;
-  line-height: 1;
-}
-.santa-crossing { animation: santa-crossing 3s ease-in-out both; }
-@keyframes santa-crossing {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(0); }
-}
-@media (prefers-reduced-motion: reduce) { .santa-crossing { animation: none; } }
-
 #jury-access .panel-card { position: relative; }
 .jury-santa-pop {
   position: absolute;

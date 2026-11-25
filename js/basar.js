@@ -476,17 +476,6 @@ function showLogin(role) {
   byId('login').elements.email.focus();
 }
 
-function playSanta(id) {
-  const strip = byId(id);
-  if (strip.dataset.played || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  strip.dataset.played = 'true';
-  const track = strip.querySelector('.santa-track');
-  track.classList.add('santa-crossing');
-  const stop = () => track.classList.remove('santa-crossing');
-  track.addEventListener('animationend', stop, { once: true });
-  track.addEventListener('animationcancel', stop, { once: true });
-}
-
 const juryCharacters = ['santa-saludo.gif', 'reno.gif', 'muneco-nieve.gif', 'duende.gif'];
 let juryCharacterTimer;
 let lastJuryCharacter;
@@ -779,7 +768,6 @@ async function start() {
   if (roomCodes.size) byId('jury-access').after(evaluation);
   const { session } = read(await client.auth.getSession());
   if (session?.user) await showSession(session.user);
-  else if (!byId('welcome').hidden) playSanta('welcome-santa');
 }
 
 start().catch(error => {
