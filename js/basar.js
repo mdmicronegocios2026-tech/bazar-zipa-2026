@@ -334,11 +334,11 @@ function showLogin(role) {
   byId('login').elements.email.focus();
 }
 
-byId('open-jury').addEventListener('click', () => {
+action(byId('open-jury'), async () => {
   byId('welcome').hidden = true;
   byId('jury-access').hidden = false;
-  const slot = byId('jury-slot');
-  slot.focus();
+  if (roomCodes.size) await loadJuryNames();
+  if (!byId('jury-access').hidden) byId('jury-slot').focus();
 });
 byId('jury-back').addEventListener('click', () => {
   activePrivate = null;
@@ -526,37 +526,39 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
+async function loadJuryNames() {
+  const slot = byId('jury-slot');
+  if (slot.dataset.ready) return;
+  const note = byId('jury-access-note');
+  slot.disabled = true;
+  note.textContent = 'Cargando los jurados…';
+  try {
+    const groups = await Promise.all([...roomCodes].map(async ([sala, codigo]) => {
+      const jurors = read(await client.rpc('bazar_jurados_agenda', { codigo, sala_solicitada: sala }));
+      if (jurors.length !== 3) throw new Error('La lista de un salón aún está incompleta.');
+      const group = document.createElement('optgroup');
+      group.label = 'Salón ' + jurors[0].salon;
+      group.append(...jurors.map(juror => new Option(juror.nombre, juror.opcion)));
+      return group;
+    }));
+    slot.replaceChildren(new Option('Selecciona tu nombre', ''), ...groups);
+    note.textContent = 'Selecciona tu nombre para consultar la agenda.';
+    slot.dataset.ready = 'true';
+    slot.disabled = false;
+  } catch (error) {
+    note.textContent = error.message;
+  }
+}
+
 async function start() {
   if (!backend.url || !backend.key) throw new Error('Falta configurar la conexión con Supabase.');
   if (!globalThis.supabase) throw new Error('No se pudo cargar el cliente de Supabase.');
-  client = globalThis.supabase.createClient(backend.url, backend.key, { auth: { storageKey: 'basar-sipa-2026-auth', detectSessionInUrl: roomCodes.size === 0 } });
-  if (roomCodes.size) {
-    byId('jury-access').after(evaluation);
-    const slot = byId('jury-slot');
-    const note = byId('jury-access-note');
-    slot.disabled = true;
-    note.textContent = 'Cargando los jurados de tu sala…';
-    byId('open-jury').click();
-    try {
-      const groups = await Promise.all([...roomCodes].map(async ([sala, codigo]) => {
-        const jurors = read(await client.rpc('bazar_jurados_agenda', { codigo, sala_solicitada: sala }));
-        if (jurors.length !== 3) throw new Error('La lista de un salón aún está incompleta.');
-        const group = document.createElement('optgroup');
-        group.label = 'Salón ' + jurors[0].salon;
-        group.append(...jurors.map(juror => new Option(juror.nombre, juror.opcion)));
-        return group;
-      }));
-      slot.replaceChildren(new Option('Selecciona tu nombre', ''), ...groups);
-      note.textContent = 'Selecciona tu nombre para consultar la agenda.';
-      slot.disabled = false;
-      if (!byId('jury-access').hidden) slot.focus();
-    } catch (error) {
-      note.textContent = error.message;
-    }
-    return;
-  }
+  client = globalThis.supabase.createClient(backend.url, backend.key, {
+    auth: { storageKey: 'basar-sipa-2026-auth', detectSessionInUrl: roomCodes.size === 0 }
+  });
+  if (roomCodes.size) byId('jury-access').after(evaluation);
   const { session } = read(await client.auth.getSession());
-  await showSession(session?.user);
+  if (session?.user) await showSession(session.user);
 }
 
 start().catch(error => {

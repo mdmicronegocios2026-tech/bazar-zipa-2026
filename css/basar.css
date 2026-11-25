@@ -31,3 +31,88 @@
 .bazar-metrics p { background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: .75rem; }
 button:disabled { opacity: .6; cursor: default; }
 @media (prefers-reduced-motion: reduce) { .hero::after { animation: none; } }
+
+:root {
+  --ink: #18352c;
+  --muted: #4d6259;
+  --paper: #f8f5ec;
+  --line: #ded9c9;
+  --accent: #9c343f;
+  --accent-deep: #752530;
+  --accent-tint: #f8ecea;
+  --xmas-green: #153f33;
+  --xmas-red: #9c343f;
+  --gold: #c59b55;
+}
+.header {
+  background: #143b30;
+  border-bottom: 2px solid #c59b55;
+  padding-block: 12px;
+}
+.header .logo { gap: clamp(.6rem, 2vw, 1.4rem); }
+#welcome.section { padding: 0; }
+#welcome .hero {
+  min-height: clamp(31rem, 78vh, 53rem);
+  padding: clamp(3rem, 8vw, 7rem) 1.25rem;
+  background: radial-gradient(ellipse at 50% 0%, #faf0d2 0%, transparent 58%), #f8f5ec;
+}
+#welcome .hero::before {
+  background: repeating-radial-gradient(circle at 0 0, transparent 0 31px, #b9975e20 32px 33px, transparent 34px 57px);
+  mask-image: linear-gradient(115deg, #000 0%, transparent 48%);
+}
+#welcome .hero::after {
+  inset: auto 0 0;
+  height: 3px;
+  background: linear-gradient(90deg, #153f33, #c59b55 44%, #c59b55 56%, #9c343f);
+  animation: none;
+}
+#welcome .hero-inner { max-width: 52rem; }
+#welcome .hero-sub {
+  margin: 0 auto 1rem;
+  color: #6c5130;
+  font-size: .85rem;
+  font-weight: 700;
+  letter-spacing: .045em;
+}
+#welcome .hero-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2.8rem, 8vw, 6rem);
+  line-height: .98;
+  letter-spacing: -.055em;
+  text-shadow: none;
+}
+#welcome .hero-subtitle {
+  color: var(--muted);
+  margin: 1rem 0 2.4rem;
+  font-size: clamp(1rem, 2.7vw, 1.3rem);
+}
+#welcome .role-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+#welcome .role-card {
+  border: 1px solid #dccca8;
+  border-top: 4px solid #245846;
+  border-radius: 14px;
+  background: #fffdf7;
+  padding: clamp(1rem, 3vw, 1.7rem);
+  box-shadow: 0 10px 32px #523c2512;
+}
+#welcome .role-card::before { content: none; }
+#welcome .role-admin { border-top-color: #9c343f; }
+#welcome .role-card:hover { border-color: #be985b; box-shadow: 0 14px 34px #523c2526; }
+#welcome .role-title { color: #193e32; }
+#welcome .role-desc { color: #465b52; }
+#jury-access .panel-card, #access .panel-card, #dashboard .admin-content, #evaluation {
+  border-radius: 14px;
+  box-shadow: 0 10px 28px #243c2610;
+}
+#dashboard .tab-btn.active { background: #e9f0e9; color: #153f33; border-bottom-color: #31705a; }
+#jury-private-agenda h3 { margin-block: 1rem .6rem; }
+#jury-private-agenda .agenda-row { padding-inline: .4rem; }
+#jury-private-agenda .agenda-row:nth-child(odd) { background: #f7f6ef; }
+:focus-visible { outline: 3px solid #9c343f; outline-offset: 3px; }
+@media (max-width: 39rem) {
+  #welcome .role-grid { grid-template-columns: 1fr; }
+  #welcome .hero { min-height: auto; }
+}
