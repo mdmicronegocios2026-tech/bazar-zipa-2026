@@ -404,10 +404,28 @@ function playSanta(id) {
   track.addEventListener('animationcancel', stop, { once: true });
 }
 
+function scheduleJurySanta() {
+  const santa = byId('jury-santa');
+  const panel = byId('jury-access');
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  if (santa.dataset.scheduled || reducedMotion.matches) return;
+  santa.dataset.scheduled = 'true';
+  santa.dataset.edge = Math.random() < .5 ? 'left' : 'right';
+  setTimeout(() => {
+    if (panel.hidden || reducedMotion.matches) {
+      delete santa.dataset.scheduled;
+      return;
+    }
+    santa.src = new URL('../img/santa-saludo.gif', import.meta.url).href;
+    santa.hidden = false;
+    setTimeout(() => { santa.hidden = true; }, 3200);
+  }, 800 + Math.random() * 2200);
+}
+
 action(byId('open-jury'), async () => {
   byId('welcome').hidden = true;
   byId('jury-access').hidden = false;
-  playSanta('jury-santa');
+  scheduleJurySanta();
   if (roomCodes.size) await loadJuryNames();
   if (!byId('jury-access').hidden) byId('jury-slot').focus();
 });

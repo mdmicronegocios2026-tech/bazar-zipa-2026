@@ -259,3 +259,21 @@ button:disabled { opacity: .6; cursor: default; }
   to { transform: translateX(0); }
 }
 @media (prefers-reduced-motion: reduce) { .santa-crossing { animation: none; } }
+
+#jury-access .panel-card { position: relative; }
+.jury-santa-pop {
+  position: absolute;
+  top: -1.1rem;
+  width: clamp(2.6rem, 6vw, 4.5rem);
+  height: auto;
+  pointer-events: none;
+  z-index: 1;
+  animation: jury-santa-pop 3.2s ease both;
+}
+.jury-santa-pop[data-edge="left"] { left: 0; }
+.jury-santa-pop[data-edge="right"] { right: 0; }
+@keyframes jury-santa-pop {
+  0%, 100% { opacity: 0; transform: translateY(6px); }
+  14%, 85% { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) { .jury-santa-pop { display: none; } }
