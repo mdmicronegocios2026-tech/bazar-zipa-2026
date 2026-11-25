@@ -158,3 +158,19 @@ button:disabled { opacity: .6; cursor: default; }
   #jury-picker { grid-template-columns: 1fr; }
   #jury-private-agenda .agenda-row { padding-inline: .65rem; }
 }
+
+.bazar-semaforo { min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 1rem; }
+.bazar-semaforo legend { padding: 0 .45rem; font-weight: 700; }
+#semaforo-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+#evaluation .semaforo-option {
+  display: flex; align-items: flex-start; gap: .65rem; padding: .75rem;
+  border: 1px solid var(--line); border-left: 4px solid var(--signal); border-radius: 8px; cursor: pointer;
+}
+#evaluation .semaforo-option input { width: auto; margin-top: .35rem; accent-color: var(--signal); }
+.semaforo-option .hint { display: block; font-weight: 400; }
+.semaforo-option:has(:checked) { background: #f5f1e8; outline: 2px solid var(--signal); outline-offset: -2px; }
+.semaforo-option[data-color="verde"] { --signal: #247348; }
+.semaforo-option[data-color="amarillo"] { --signal: #997000; }
+.semaforo-option[data-color="naranja"] { --signal: #b2561c; }
+.semaforo-option[data-color="rojo"] { --signal: #9c343f; }
+@media (max-width: 40rem) { #semaforo-options { grid-template-columns: 1fr; } }

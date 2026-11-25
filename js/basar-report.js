@@ -1,3 +1,4 @@
+import { semaforo } from './basar-semaforo.js';
 let library;
 
 function loadLibrary() {
@@ -22,7 +23,7 @@ export async function exportResults({ jornada, agenda, respuestas, jurados = [] 
   const detail = workbook.addWorksheet('Detalle por jurado');
   const rubric = workbook.addWorksheet('Rúbrica');
   summary.addRow(['Participante', 'Sala', 'Inicio de Bogotá', 'Fin de Bogotá', 'Evaluaciones recibidas', 'Promedio de tres jurados / 5']);
-  detail.addRow(['Participante', 'Sala', 'Jurado', ...criteria.map(c => c.nombre), 'Puntuación / 5', 'Observación', 'Fecha de envío', 'Versión']);
+  detail.addRow(['Participante', 'Sala', 'Jurado', ...criteria.map(c => c.nombre), 'Puntuación / 5', 'Observación', 'Semáforo de participación', 'Fecha de envío', 'Versión']);
   rubric.addRow(['Versión', 'Criterio', 'Peso %', ...[5, 4, 3, 2, 1, 0].map(n => 'Nivel ' + n)]);
   for (const criterion of criteria) rubric.addRow([jornada.rubrica.version, criterion.nombre, criterion.peso, ...[5, 4, 3, 2, 1, 0].map(n => criterion.niveles?.[n] ?? '')]);
   for (const participant of agenda) {
@@ -34,7 +35,7 @@ export async function exportResults({ jornada, agenda, respuestas, jurados = [] 
     for (const answer of received) {
       const detailRow = detail.addRow([
         participant.nombre, participant.sala, jurados.find(jurado => jurado.opcion === answer.jurado_opcion)?.nombre ?? answer.jurado_id ?? ('Jurado ' + answer.jurado_opcion), ...criteria.map(c => answer.notas[c.id]), Number(answer.puntuacion),
-        answer.observacion, formatter.format(new Date(answer.enviada)), answer.rubrica_version
+        answer.observacion, semaforo[answer.semaforo] ?? null, formatter.format(new Date(answer.enviada)), answer.rubrica_version
       ]);
       detailRow.getCell(4 + criteria.length).numFmt = '0.00';
     }

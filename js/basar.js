@@ -1,3 +1,4 @@
+import { semaforo } from './basar-semaforo.js';
 import { backend } from './basar-config.js';
 
 const byId = id => document.getElementById(id);
@@ -167,6 +168,7 @@ function render() {
           for (const answer of received) {
             const juror = jurors.find(item => item.opcion === answer.jurado_opcion);
             details.append(node('p', (juror?.nombre ?? 'Jurado') + ' · ' + answer.puntuacion + ' / 5'));
+            if (answer.semaforo) details.append(node('p', semaforo[answer.semaforo]));
             details.append(node('p', answer.observacion));
           }
           info.append(details);
@@ -514,6 +516,26 @@ action(byId('agenda-form'), async () => {
   await refresh();
 });
 
+const descriptions = {
+  verde: 'Su propuesta está lista y encaja con el evento.',
+  amarillo: 'Puede participar si realiza ajustes concretos.',
+  naranja: 'Requiere mejoras importantes antes de participar.',
+  rojo: 'Su propuesta no se ajusta a esta edición del bazar.'
+};
+byId('semaforo-options').replaceChildren(...Object.entries(semaforo).map(([color, title]) => {
+  const label = node('label', '', 'semaforo-option');
+  label.dataset.color = color;
+  const input = document.createElement('input');
+  input.type = 'radio';
+  input.name = 'recomendacion';
+  input.value = color;
+  input.required = true;
+  const copy = node('span', '');
+  copy.append(node('strong', title), node('span', descriptions[color], 'hint'));
+  label.append(input, copy);
+  return label;
+}));
+
 byId('cancel').addEventListener('click', resetEvaluation);
 function updateScore() {
   const data = new FormData(form);
@@ -537,11 +559,13 @@ action(form, () => {
   }
   const observacion = data.get('observacion').trim();
   if (!observacion) throw new Error('Escribe la observación final.');
-  pending = { notas, observacion };
+  const recomendacion = data.get('recomendacion');
+  if (!Object.hasOwn(semaforo, recomendacion)) throw new Error('Selecciona una recomendación del semáforo.');
+  pending = { notas, observacion, recomendacion };
   const rows = criteria.flatMap(criterion => [
     node('dt', criterion.nombre), node('dd', String(notas[criterion.id]))
   ]);
-  rows.push(node('dt', 'Puntuación ponderada'), node('dd', byId('score').textContent), node('dt', 'Observación final'), node('dd', observacion));
+  rows.push(node('dt', 'Puntuación ponderada'), node('dd', byId('score').textContent), node('dt', 'Semáforo de participación'), node('dd', semaforo[recomendacion]), node('dt', 'Observación final'), node('dd', observacion));
   byId('review-summary').replaceChildren(...rows);
   form.hidden = true;
   byId('review').hidden = false;
@@ -556,11 +580,11 @@ byId('back-edit').addEventListener('click', () => {
 action(byId('send'), async () => {
   const participant = selected;
   if (!participant || !pending) return;
-  const { notas, observacion } = pending;
+  const { notas, observacion, recomendacion } = pending;
   try {
     if (!activePrivate) throw new Error('Usa el enlace compartido de jurados para enviar.');
-    read(await client.rpc('bazar_enviar_evaluacion', {
-      codigo: activePrivate.codigo, puesto: activePrivate.puesto, participante: participant.id, notas, observacion
+    read(await client.rpc('bazar_enviar_evaluacion_con_semaforo', {
+      codigo: activePrivate.codigo, puesto: activePrivate.puesto, participante: participant.id, notas, observacion, recomendacion
     }));
   } catch (error) {
     await refresh();
@@ -573,7 +597,7 @@ action(byId('send'), async () => {
 
 action(byId('export'), async () => {
   await refresh();
-  const { exportResults } = await import('./basar-report.js?v=3');
+  const { exportResults } = await import('./basar-report.js?v=4');
   await exportResults(model, formatter);
 });
 
