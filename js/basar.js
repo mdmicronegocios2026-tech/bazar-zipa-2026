@@ -23,6 +23,10 @@ let expectedRole;
 let view = 'progress';
 let roomFilter = 0;
 let activePrivate;
+let liveRequest;
+let liveCheckedAt;
+let liveFailed = false;
+const liveViews = new Set(['progress', 'results']);
 const roomCodes = new Map();
 const sharedLink = /^#jurados=([0-9a-f]{64})\.([0-9a-f]{64})$/.exec(location.hash);
 const roomLink = /^#sala-(1|2)=([0-9a-f]{64})$/.exec(location.hash);
@@ -83,14 +87,78 @@ async function refresh() {
   const [jornada, agenda, respuestas, jurados] = (await Promise.all([
     client.from('basar_jornada').select('abierta,rubrica').single(),
     client.from('basar_participantes').select('id,nombre,sala,horario,horario_fin').order('sala').order('horario').order('id'),
-    client.from('basar_evaluaciones').select('*'),
+    evaluationQuery(),
     activeProfile.rol === 'admin'
       ? client.rpc('bazar_lista_jurados_admin')
       : { data: [] }
   ])).map(read);
   if (profile !== activeProfile) return;
   model = { jornada, agenda, respuestas, jurados };
+  liveCheckedAt = new Date();
+  liveFailed = false;
   render();
+}
+
+function evaluationQuery() {
+  return client.from('basar_evaluaciones').select('*').order('enviada', { ascending: false }).order('id');
+}
+
+function renderLiveStatus() {
+  byId('live-results-status').textContent = liveFailed ? 'Conexión interrumpida · Reintentando…' :
+    liveCheckedAt ? 'Actualizado a las ' + timeFormatter.format(liveCheckedAt) : 'Conectando…';
+}
+
+function renderLiveResults() {
+  const panel = byId('live-results');
+  panel.hidden = profile.rol !== 'admin' || !liveViews.has(view);
+  if (panel.hidden) return;
+  renderLiveStatus();
+
+  const participants = model.agenda.filter(item => !roomFilter || item.sala === roomFilter);
+  const byParticipant = new Map(participants.map(item => [item.id, item]));
+  const answers = model.respuestas.filter(item => byParticipant.has(item.participante_id));
+  const count = byId('live-results-count');
+  const message = answers.length + ' de ' + participants.length * 3 + ' evaluaciones recibidas';
+  if (count.textContent !== message) count.textContent = message;
+
+  const jurors = new Map(model.jurados.map(jurado => [jurado.opcion, jurado.nombre]));
+  const latest = answers.slice(0, 5).map(answer => {
+    const participant = byParticipant.get(answer.participante_id);
+    const juror = jurors.get(answer.jurado_opcion) ?? 'Jurado';
+    return node('li', timeFormatter.format(new Date(answer.enviada)) + ' · Sala ' + participant.sala +
+      ' · ' + participant.nombre + ' · ' + juror + ' · ' + answer.puntuacion + ' / 5');
+  });
+  byId('live-results-list').replaceChildren(...(latest.length ? latest : [node('li', 'Todavía no se han recibido evaluaciones.')]));
+}
+
+async function pollLiveResults() {
+  if (liveRequest || profile?.rol !== 'admin' || !model || dashboard.hidden ||
+      document.visibilityState !== 'visible' || !liveViews.has(view)) return;
+  const previous = model;
+  const admin = profile;
+  const request = evaluationQuery();
+  liveRequest = request;
+  try {
+    const answers = read(await request);
+    if (profile !== admin || model !== previous || !liveViews.has(view)) return;
+    liveCheckedAt = new Date();
+    liveFailed = false;
+    const changed = answers.length !== model.respuestas.length ||
+      answers.some((answer, i) => answer.id !== model.respuestas[i].id || answer.semaforo !== model.respuestas[i].semaforo);
+    if (changed) {
+      model = { ...model, respuestas: answers };
+      render();
+    } else {
+      renderLiveStatus();
+    }
+  } catch {
+    if (profile === admin && model === previous && liveViews.has(view)) {
+      liveFailed = true;
+      renderLiveStatus();
+    }
+  } finally {
+    if (liveRequest === request) liveRequest = null;
+  }
 }
 
 function render() {
@@ -103,7 +171,9 @@ function render() {
   byId('availability').textContent = jornada.abierta ? 'Evaluaciones abiertas' :
     jornada.rubrica ? 'Evaluaciones cerradas' : 'Evaluaciones cerradas · Rúbrica oficial pendiente';
 
+  renderLiveResults();
   const target = byId('agenda');
+  const openAnswers = new Set(Array.from(target.querySelectorAll('details[data-participant][open]'), item => item.dataset.participant));
   target.hidden = admin ? view === 'config' : Boolean(selected);
   byId('admin-controls').hidden = !admin || !['config', 'agenda', 'results'].includes(view);
   byId('config-controls').hidden = view !== 'config';
@@ -160,6 +230,12 @@ function render() {
       if (admin) {
         const actions = node('div', '', 'actions');
         actions.append(node('span', received.length + ' de 3 evaluaciones'));
+        if (view === 'results' && received.length === 3) {
+          const average = received.reduce((sum, answer) => sum + Number(answer.puntuacion), 0) / 3;
+          actions.append(node('strong', 'Nota final ' + average.toLocaleString('es-CO', {
+            minimumFractionDigits: 2, maximumFractionDigits: 2
+          }) + ' / 5'));
+        }
         if (['agenda', 'participants'].includes(view)) {
           const edit = node('button', 'Editar', 'btn btn-secondary btn-small');
           action(edit, () => editParticipant(row, participant));
@@ -167,6 +243,8 @@ function render() {
         }
         if (view === 'results') {
           const details = document.createElement('details');
+          details.dataset.participant = participant.id;
+          details.open = openAnswers.has(participant.id);
           details.append(node('summary', 'Ver respuestas'));
           for (const answer of received) {
             const juror = jurors.find(item => item.opcion === answer.jurado_opcion);
@@ -527,6 +605,7 @@ for (const tab of byId('admin').querySelectorAll('[data-view]')) {
   tab.addEventListener('click', () => {
     view = tab.dataset.view;
     render();
+    pollLiveResults();
   });
 }
 
@@ -656,7 +735,12 @@ action(byId('export'), async () => {
   await exportResults(model, formatter);
 });
 
+setInterval(pollLiveResults, 5000);
 document.addEventListener('visibilitychange', () => {
+  if (profile?.rol === 'admin' && liveViews.has(view)) {
+    pollLiveResults();
+    return;
+  }
   if (document.visibilityState === 'visible' && (activePrivate || !dashboard.hidden)) {
     refresh().catch(error => { status.textContent = error.message; });
   }
