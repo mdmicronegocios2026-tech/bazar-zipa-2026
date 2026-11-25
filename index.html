@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/basar.css?v=21">
   <script defer src="vendor/supabase-2.45.4.js"></script>
-  <script type="module" src="js/basar.js?v=21"></script>
+  <script type="module" src="js/basar.js?v=22"></script>
 </head>
 <body>
   <header class="header">
@@ -145,6 +145,7 @@
       <div id="agenda" class="admin-content"></div>
       <section id="evaluation" class="card" hidden aria-labelledby="evaluation-title">
         <header class="jury-masthead"><h3 id="evaluation-title" tabindex="-1"></h3></header>
+        <p id="draft-status" class="notice" role="status" hidden></p>
         <form id="evaluation-form">
           <div id="criteria"></div>
           <fieldset class="bazar-semaforo">

@@ -1,3 +1,4 @@
+import { draftKey, readDraft, writeDraft, clearConfirmedDraft } from './basar-drafts.js';
 import { semaforo } from './basar-semaforo.js';
 import { backend } from './basar-config.js';
 
@@ -23,6 +24,7 @@ let expectedRole;
 let view = 'progress';
 let roomFilter = 0;
 let activePrivate;
+let currentDraftKey;
 let liveRequest;
 let liveCheckedAt;
 let liveFailed = false;
@@ -70,6 +72,8 @@ function action(target, handler) {
 function resetEvaluation() {
   const returning = Boolean(selected && activePrivate);
   selected = null;
+  currentDraftKey = undefined;
+  byId('draft-status').hidden = true;
   pending = null;
   form.hidden = false;
   byId('review').hidden = true;
@@ -372,6 +376,10 @@ function openEvaluation(participant, rubric) {
   selected = participant;
   const fields = rubric.criterios.map(renderCriterion);
   byId('criteria').replaceChildren(...fields);
+  if (activePrivate) {
+    currentDraftKey = draftKey(activePrivate.puesto, participant.id, rubric.version);
+    restoreEvaluationDraft();
+  }
   byId('evaluation-title').textContent = 'Evaluar a ' + participant.nombre;
   evaluation.hidden = false;
   if (activePrivate) {
@@ -668,7 +676,45 @@ function updateScore() {
   }, 0);
   byId('score').textContent = total.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-form.addEventListener('input', updateScore);
+function showDraftStatus(message) {
+  const indicator = byId('draft-status');
+  if (indicator.textContent !== message) indicator.textContent = message;
+  indicator.hidden = false;
+}
+
+function saveEvaluationDraft() {
+  if (!currentDraftKey) return;
+  try {
+    const fields = Object.fromEntries(new FormData(form));
+    const saved = writeDraft(localStorage, currentDraftKey, fields);
+    showDraftStatus('Borrador guardado en este navegador.');
+    return saved;
+  } catch {
+    showDraftStatus('No se pudo guardar el borrador en este navegador. Mantén esta pestaña abierta.');
+  }
+}
+
+function restoreEvaluationDraft() {
+  try {
+    const fields = readDraft(localStorage, currentDraftKey);
+    if (!fields) return;
+    for (const input of form.querySelectorAll('input[name], textarea[name]')) {
+      const value = fields[input.name];
+      if (typeof value !== 'string') continue;
+      if (input.type === 'radio') input.checked = input.value === value;
+      else input.value = value;
+      if (input.name.startsWith('nota_')) input.dispatchEvent(new Event('input'));
+    }
+    showDraftStatus('Borrador recuperado de este navegador.');
+  } catch {
+    showDraftStatus('No se pudo recuperar el borrador de este navegador.');
+  }
+}
+
+form.addEventListener('input', () => {
+  updateScore();
+  saveEvaluationDraft();
+});
 
 action(form, () => {
   if (!selected) return;
@@ -704,18 +750,35 @@ action(byId('send'), async () => {
   const participant = selected;
   if (!participant || !pending) return;
   const { notas, observacion, recomendacion } = pending;
+  const jury = activePrivate;
+  const key = currentDraftKey;
+  const saved = saveEvaluationDraft();
   try {
-    if (!activePrivate) throw new Error('Usa el enlace compartido de jurados para enviar.');
+    if (!jury) throw new Error('Usa el enlace compartido de jurados para enviar.');
     read(await client.rpc('bazar_enviar_evaluacion_con_semaforo', {
-      codigo: activePrivate.codigo, puesto: activePrivate.puesto, participante: participant.id, notas, observacion, recomendacion
+      codigo: jury.codigo, puesto: jury.puesto, participante: participant.id, notas, observacion, recomendacion
     }));
   } catch (error) {
-    await refresh();
+    if (activePrivate !== jury || selected !== participant) return;
+    try {
+      await refresh();
+    } catch {
+      throw new Error(saved ? 'No se pudo confirmar el envío. El borrador sigue guardado en este navegador.' :
+        'No se pudo confirmar el envío ni guardar el borrador. Mantén esta pestaña abierta.');
+    }
+    if (activePrivate !== jury || selected !== participant) return;
     if (!model.respuestas.some(answer => answer.participante_id === participant.id)) throw error;
+    resetEvaluation();
+    status.textContent = saved ?
+      'Ya hay una evaluación registrada para este puesto. Se conservó el borrador local.' :
+      'Ya hay una evaluación registrada para este puesto.';
+    return;
   }
+  try { clearConfirmedDraft(localStorage, key, saved); } catch { /* La evaluación ya está registrada. */ }
+  if (activePrivate !== jury || selected !== participant) return;
   resetEvaluation();
-  await refresh();
   status.textContent = 'Evaluación registrada.';
+  try { await refresh(); } catch { status.textContent = 'Evaluación registrada. Actualiza la agenda cuando vuelva la conexión.'; }
 });
 
 action(byId('export'), async () => {
