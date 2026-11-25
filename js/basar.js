@@ -21,6 +21,7 @@ let pending;
 let expectedRole;
 let view = 'progress';
 let roomFilter = 0;
+let activePrivate;
 const roomCodes = new Map();
 const sharedLink = /^#jurados=([0-9a-f]{64})\.([0-9a-f]{64})$/.exec(location.hash);
 const roomLink = /^#sala-(1|2)=([0-9a-f]{64})$/.exec(location.hash);
@@ -68,17 +69,19 @@ function resetEvaluation() {
   byId('review').hidden = true;
   form.reset();
   evaluation.hidden = true;
-  if (profile?.rol === 'jurado') byId('agenda').hidden = false;
+  if (activePrivate) byId('jury-access').hidden = false;
+  else if (profile?.rol === 'jurado') byId('agenda').hidden = false;
 }
 
 async function refresh() {
+  if (activePrivate) return refreshPrivate();
   const activeProfile = profile;
   const [jornada, agenda, respuestas, jurados] = (await Promise.all([
     client.from('basar_jornada').select('abierta,rubrica').single(),
     client.from('basar_participantes').select('id,nombre,sala,horario,horario_fin').order('sala').order('horario').order('id'),
     client.from('basar_evaluaciones').select('*'),
     activeProfile.rol === 'admin'
-      ? client.from('basar_perfiles').select('id,nombre,sala,puesto').eq('rol', 'jurado').order('sala').order('puesto')
+      ? client.rpc('bazar_lista_jurados_admin')
       : { data: [] }
   ])).map(read);
   if (profile !== activeProfile) return;
@@ -162,7 +165,7 @@ function render() {
           const details = document.createElement('details');
           details.append(node('summary', 'Ver respuestas'));
           for (const answer of received) {
-            const juror = jurors.find(item => item.id === answer.jurado_id);
+            const juror = jurors.find(item => item.opcion === answer.jurado_opcion);
             details.append(node('p', (juror?.nombre ?? 'Jurado') + ' · ' + answer.puntuacion + ' / 5'));
             details.append(node('p', answer.observacion));
           }
@@ -231,7 +234,8 @@ function openEvaluation(participant, rubric) {
   byId('criteria').replaceChildren(...fields);
   byId('evaluation-title').textContent = 'Evaluar a ' + participant.nombre;
   evaluation.hidden = false;
-  byId('agenda').hidden = true;
+  if (activePrivate) byId('jury-access').hidden = true;
+  else byId('agenda').hidden = true;
   updateScore();
   byId('evaluation-title').focus();
 }
@@ -337,6 +341,7 @@ byId('open-jury').addEventListener('click', () => {
   slot.focus();
 });
 byId('jury-back').addEventListener('click', () => {
+  activePrivate = null;
   byId('jury-picker').reset();
   byId('jury-selection-status').textContent = '';
   byId('jury-private-agenda').replaceChildren();
@@ -345,34 +350,57 @@ byId('jury-back').addEventListener('click', () => {
   byId('welcome').hidden = false;
   byId('open-jury').focus();
 });
-action(byId('jury-picker'), async () => {
+const juryPicker = byId('jury-picker');
+byId('jury-slot').addEventListener('change', () => {
+  if (byId('jury-slot').value) juryPicker.requestSubmit();
+});
+action(juryPicker, async () => {
   const slot = byId('jury-slot');
-  const position = Number(slot.value);
-  const sala = position <= 3 ? 1 : 2;
-  const announcement = byId('jury-selection-status');
-  const agenda = byId('jury-private-agenda');
-  announcement.textContent = '';
-  agenda.hidden = true;
-  agenda.replaceChildren();
-  const code = roomCodes.get(sala);
-  if (!code) {
-    announcement.textContent = slot.selectedOptions[0].textContent + ' · Sala ' + sala +
-      '. Abre el enlace privado de tu sala para consultar la agenda.';
+  const puesto = Number(slot.value);
+  const sala = puesto <= 3 ? 1 : 2;
+  const codigo = roomCodes.get(sala);
+  const option = slot.selectedOptions[0];
+  activePrivate = null;
+  byId('jury-private-agenda').hidden = true;
+  if (!codigo) {
+    byId('jury-selection-status').textContent = 'Abre el enlace compartido de jurados para consultar la agenda.';
     return;
   }
   if (!client) throw new Error('No se pudo conectar con Supabase. Recarga la página.');
-  const participants = read(await client.rpc('bazar_agenda_privada', { codigo: code, opcion: position }));
-  announcement.textContent = slot.selectedOptions[0].textContent + ' · Sala ' + sala;
-  const heading = node('h3', 'Agenda de tu sala');
-  const rows = participants.map(participant => {
+  activePrivate = { codigo, puesto, nombre: option.textContent, salon: option.parentElement.label };
+  await refreshPrivate();
+});
+
+async function refreshPrivate() {
+  const jury = activePrivate;
+  const { jornada, agenda, registradas } = read(await client.rpc('bazar_estado_jurado', {
+    codigo: jury.codigo, puesto: jury.puesto
+  }));
+  if (activePrivate !== jury) return;
+  const submitted = new Set(registradas);
+  model = { jornada, respuestas: registradas.map(id => ({ participante_id: id })) };
+  byId('jury-selection-status').textContent = jury.nombre + ' · ' + jury.salon + ' · ' +
+    (jornada.abierta ? 'Evaluaciones abiertas' : 'Evaluaciones cerradas');
+  const target = byId('jury-private-agenda');
+  const heading = node('h3', 'Emprendimientos de tu salón');
+  const rows = agenda.map(participant => {
     const row = node('div', '', 'agenda-row');
     const end = participant.horario_fin ? ' – ' + timeFormatter.format(new Date(participant.horario_fin)) : '';
     row.append(node('strong', participant.nombre), node('span', formatter.format(new Date(participant.horario)) + end, 'hint'));
+    if (submitted.has(participant.id)) {
+      row.append(node('span', 'Evaluación enviada'));
+    } else if (jornada.abierta) {
+      const evaluate = node('button', 'Evaluar', 'btn btn-primary btn-small');
+      action(evaluate, () => openEvaluation(participant, jornada.rubrica));
+      row.append(evaluate);
+    }
     return row;
   });
-  agenda.replaceChildren(heading, ...rows);
-  agenda.hidden = false;
-});
+  const reload = node('button', 'Actualizar agenda', 'btn btn-secondary btn-small');
+  action(reload, refreshPrivate);
+  target.replaceChildren(heading, reload, ...rows);
+  target.hidden = false;
+}
 byId('open-admin').addEventListener('click', () => showLogin('admin'));
 byId('back-home').addEventListener('click', () => {
   access.hidden = true;
@@ -473,7 +501,10 @@ action(byId('send'), async () => {
   if (!participant || !pending) return;
   const { notas, observacion } = pending;
   try {
-    read(await client.from('basar_evaluaciones').insert({ participante_id: participant.id, notas, observacion }));
+    if (!activePrivate) throw new Error('Usa el enlace compartido de jurados para enviar.');
+    read(await client.rpc('bazar_enviar_evaluacion', {
+      codigo: activePrivate.codigo, puesto: activePrivate.puesto, participante: participant.id, notas, observacion
+    }));
   } catch (error) {
     await refresh();
     if (!model.respuestas.some(answer => answer.participante_id === participant.id)) throw error;
@@ -485,12 +516,12 @@ action(byId('send'), async () => {
 
 action(byId('export'), async () => {
   await refresh();
-  const { exportResults } = await import('./basar-report.js?v=2');
+  const { exportResults } = await import('./basar-report.js?v=3');
   await exportResults(model, formatter);
 });
 
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && dashboard.hidden === false) {
+  if (document.visibilityState === 'visible' && (activePrivate || !dashboard.hidden)) {
     refresh().catch(error => { status.textContent = error.message; });
   }
 });
@@ -500,6 +531,7 @@ async function start() {
   if (!globalThis.supabase) throw new Error('No se pudo cargar el cliente de Supabase.');
   client = globalThis.supabase.createClient(backend.url, backend.key, { auth: { storageKey: 'basar-sipa-2026-auth', detectSessionInUrl: roomCodes.size === 0 } });
   if (roomCodes.size) {
+    byId('jury-access').after(evaluation);
     const slot = byId('jury-slot');
     const note = byId('jury-access-note');
     slot.disabled = true;
